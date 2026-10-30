@@ -56,10 +56,10 @@ public final class MainActivity extends Activity {
     }
     private void notice(String s){runOnUiThread(()->{if(message!=null)message.setText(s);});}
     private void showHome(){
-        layout();message=text("Tesserae EPD-42S",24);root.addView(message);
-        if(value("token").isEmpty()){showSetup();return;}
+        if(value("token").isEmpty() || value("device_id").isEmpty()){showSetup();return;}
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(Color.WHITE);setContentView(root);message=null;
         frame=new ImageView(this);frame.setBackgroundColor(Color.WHITE);frame.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        root.addView(frame,new LinearLayout.LayoutParams(-1,0,1));
+        root.addView(frame,new LinearLayout.LayoutParams(-1,-1));
         frame.setOnLongClickListener(v -> { showSettings(); return true; });
         loadCachedFrame();
         schedule(0);
@@ -148,10 +148,10 @@ public final class MainActivity extends Activity {
         worker.execute(()->{
             try{
                 NativeTesseraeClient.Reply r=api.frame(base,id,token,frame!=null && frame.getDrawable()!=null?etag:null);
-                if(r.status==304){notice("");schedule(30);return;}
-                if(r.status==204){notice("Waiting for a dashboard to be pushed from Tesserae");schedule(30);return;}
+                if(r.status==304){schedule(30);return;}
+                if(r.status==204){schedule(30);return;}
                 if(r.status!=200)throw new Exception("Frame HTTP "+r.status+": "+r.error);
-                if(!"png".equalsIgnoreCase(r.data.optString("format")))throw new Exception("Server did not offer a PNG renderer");
+                if(!"png".equalsIgnoreCase(r.data.optString("format")) && !r.data.optString("url","").endsWith(".png"))throw new Exception("Server did not offer a PNG renderer");
                 byte[] bytes=api.downloadPng(base,r.data.getString("url"));
                 Bitmap bmp=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
                 if(bmp==null)throw new Exception("PNG decode failed");
@@ -162,7 +162,7 @@ public final class MainActivity extends Activity {
                     if(frame!=null){frame.setImageBitmap(bmp);etag=tag;}
                 });
                 schedule(30);
-            }catch(Exception ex){notice("Connection: "+ex.getMessage());schedule(45);}
+            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());schedule(45);}
             finally{fetching=false;}
         });
     }
