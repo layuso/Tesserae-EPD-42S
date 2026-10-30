@@ -7,7 +7,7 @@ This is a dedicated e-ink appliance, not a miniature Android tablet. Display the
 1. Welcome: “Connect to Tesserae”. Discover server on LAN (optional mDNS), or enter HTTPS URL.
 2. Choose registration: **Find this display in Tesserae** (default), or **I have a pairing code**.
 3. Display identity and capability summary: Avalue EPD-42S, 2880×2160, 16 grey levels, MAC (masked in normal UI).
-4. Orientation calibration: show a conspicuous UP marker and select 0°, 90°, 180°, or 270°. Default 0° until user sets it.
+4. No orientation step. Tesserae's existing device troubleshooting flow manages orientation after the device is added.
 5. Discover sends identity; waiting screen “Approve this display in Tesserae → Settings → Devices”; periodically retry per retry_after_s.
 6. Pairing code sends code once; show expired/invalid error with retry, not an infinite loop.
 7. On receipt of token: display “Connected”; begin native frame retrieval. If no dashboard assigned (204), show waiting state.
@@ -23,7 +23,7 @@ This is a dedicated e-ink appliance, not a miniature Android tablet. Display the
 Deliberate screen tap/hold opens minimal settings:
 - Connection (server, device id, registered/unregistered).
 - Transport: REST (now), MQTT (later).
-- Orientation: visual UP calibration.
+- Orientation is not configurable in this app; use Tesserae's device troubleshooting flow.
 - Refresh now; network diagnostics.
 - Reset registration (explicit confirmation; clears local token only).
 
