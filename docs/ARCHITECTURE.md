@@ -13,7 +13,7 @@ Zero-touch `POST /api/v1/device/discover`, with `device_id` matching `^[a-z][a-z
 
 Pair code: `POST /api/v1/device/register` with `X-Pairing-Code`, same identity. Code issued in Tesserae Settings → Devices; never show token.
 
-The server captures rotation at first registration and does not automatically update geometry on repeat discovery; subsequent rotations require device-card settings or re-pairing.
+Orientation and calibration are exclusively Tesserae server responsibilities. The Android client has no orientation UX or mutable orientation setting. Initial discovery reports rotation=0 as a protocol baseline; never attempt to override subsequent server-side configuration.
 
 ## Frame and presentation
 Use `Authorization: Bearer <token>`, optionally `If-None-Match: <etag>` for `GET /api/v1/device/{id}/frame`. 200 JSON includes `url`, `format`, `render_id`, `panel_w/h`, optionally `native_w/h`, and potentially `rotate` for PNG. 204 = not ready; 304 = unchanged, *but a fresh process without the cached bitmap must not suppress its first paint*. Retrieve artifact from trusted same-host HTTPS URL, reject unsupported formats, decode PNG and display via software Android Views. Do not rotate twice: Tesserae registration rotation may be baked into the delivered frame; verify `native_w/h` and `rotate` on hardware before client transforms.
