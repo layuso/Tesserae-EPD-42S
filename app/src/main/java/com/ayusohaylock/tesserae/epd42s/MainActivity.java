@@ -19,6 +19,9 @@ import android.widget.TextView;
 import org.json.JSONObject;
 import java.net.NetworkInterface;
 import java.util.Collections;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,7 +35,7 @@ public final class MainActivity extends Activity {
     private TextView message;
     private ImageView frame;
     private String etag=null;
-    private boolean fetching=false;
+    private volatile boolean fetching=false;
     private boolean active=false;
     private final Runnable poll=new Runnable(){public void run(){fetchFrame();}};
     @Override public void onCreate(Bundle b){
@@ -54,13 +57,16 @@ public final class MainActivity extends Activity {
     private void notice(String s){runOnUiThread(()->{if(message!=null)message.setText(s);});}
     private void showHome(){
         layout();message=text("Tesserae EPD-42S",24);root.addView(message);
-        if(value("token").isEmpty()){root.addView(button("Connect display",this::showSetup));return;}
+        if(value("token").isEmpty()){showSetup();return;}
         frame=new ImageView(this);frame.setBackgroundColor(Color.WHITE);frame.setScaleType(ImageView.ScaleType.FIT_CENTER);
         root.addView(frame,new LinearLayout.LayoutParams(-1,0,1));
-        root.addView(button("Refresh now",this::fetchFrame));
-        root.addView(button("Settings",this::showSettings));
+        frame.setOnLongClickListener(v -> { showSettings(); return true; });
+        loadCachedFrame();
         schedule(0);
     }
+    private File frameCache(){return new File(getFilesDir(),"last-frame.png");}
+    private void loadCachedFrame(){try(FileInputStream in=new FileInputStream(frameCache())){Bitmap bmp=BitmapFactory.decodeStream(in);if(bmp!=null)frame.setImageBitmap(bmp);}catch(Exception ignored){}}
+    private void cacheFrame(byte[] data){File tmp=new File(getFilesDir(),"last-frame.tmp");try(FileOutputStream out=new FileOutputStream(tmp)){out.write(data);out.flush();out.getFD().sync();if(!tmp.renameTo(frameCache()))throw new Exception("cache rename");}catch(Exception e){android.util.Log.w("TesseraeEPD","Cache failure",e);tmp.delete();}}
     private void showSettings(){
         new AlertDialog.Builder(this).setTitle("Tesserae EPD-42S")
             .setItems(new String[]{"Refresh now","Connection details","Reconfigure / re-pair"},(d,n)->{
@@ -150,9 +156,10 @@ public final class MainActivity extends Activity {
                 Bitmap bmp=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
                 if(bmp==null)throw new Exception("PNG decode failed");
                 if(bmp.getWidth()!=2880 || bmp.getHeight()!=2160)throw new Exception("Unexpected frame "+bmp.getWidth()+"x"+bmp.getHeight());
+                cacheFrame(bytes);
                 String tag=r.etag!=null?r.etag:r.data.optString("render_id","");
                 runOnUiThread(()->{
-                    if(frame!=null){frame.setImageBitmap(bmp);message.setText("");etag=tag;}
+                    if(frame!=null){frame.setImageBitmap(bmp);etag=tag;}
                 });
                 schedule(30);
             }catch(Exception ex){notice("Connection: "+ex.getMessage());schedule(45);}
