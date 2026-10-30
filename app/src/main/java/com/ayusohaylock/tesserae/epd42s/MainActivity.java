@@ -30,6 +30,7 @@ public final class MainActivity extends Activity {
     private final Handler ui=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final NativeTesseraeClient api=new NativeTesseraeClient();
+    private final MqttFrameNotifier mqtt=new MqttFrameNotifier();
     private SharedPreferences prefs;
     private LinearLayout root;
     private TextView message;
@@ -62,18 +63,43 @@ public final class MainActivity extends Activity {
         root.addView(frame,new LinearLayout.LayoutParams(-1,-1));
         frame.setOnLongClickListener(v -> { showSettings(); return true; });
         loadCachedFrame();
+        startMqtt();
         schedule(0);
     }
     private File frameCache(){return new File(getFilesDir(),"last-frame.png");}
     private void loadCachedFrame(){try(FileInputStream in=new FileInputStream(frameCache())){Bitmap bmp=BitmapFactory.decodeStream(in);if(bmp!=null)frame.setImageBitmap(bmp);}catch(Exception ignored){}}
     private void cacheFrame(byte[] data){File tmp=new File(getFilesDir(),"last-frame.tmp");try(FileOutputStream out=new FileOutputStream(tmp)){out.write(data);out.flush();out.getFD().sync();if(!tmp.renameTo(frameCache()))throw new Exception("cache rename");}catch(Exception e){android.util.Log.w("TesseraeEPD","Cache failure",e);tmp.delete();}}
+    private void startMqtt(){
+        mqtt.stop();
+        String broker=value("mqtt_broker");
+        if(broker.isEmpty())return;
+        try{mqtt.start(broker,value("device_id"),()->runOnUiThread(()->schedule(0)));}
+        catch(Exception e){android.util.Log.w("TesseraeEPD","MQTT unavailable; REST polling remains active",e);}
+    }
+    private void configureMqtt(){
+        final EditText entry=new EditText(this);
+        entry.setSingleLine(true);
+        entry.setHint("tcp://broker.lan:1883 or ssl://host:8883");
+        entry.setText(value("mqtt_broker"));
+        new AlertDialog.Builder(this).setTitle("MQTT frame notifications")
+            .setMessage("Enter a reachable broker URI; leave blank for REST polling. Do not expose a plaintext MQTT broker to the internet.")
+            .setView(entry)
+            .setPositiveButton("Save",(d,w)->{
+                String uri=entry.getText().toString().trim();
+                if(!uri.isEmpty() && !(uri.matches("(tcp|ssl)://[a-zA-Z0-9._-]+:[0-9]{1,5}"))){
+                    new AlertDialog.Builder(this).setMessage("Expected tcp://host:port or ssl://host:port").setPositiveButton("OK",null).show();return;
+                }
+                prefs.edit().putString("mqtt_broker",uri).apply();startMqtt();
+            }).setNegativeButton("Cancel",null).show();
+    }
     private void showSettings(){
         new AlertDialog.Builder(this).setTitle("Tesserae EPD-42S")
-            .setItems(new String[]{"Refresh now","Connection details","Reconfigure / re-pair"},(d,n)->{
+            .setItems(new String[]{"Refresh now","Connection details","MQTT notifications","Reconfigure / re-pair"},(d,n)->{
                 if(n==0) fetchFrame();
                 if(n==1) new AlertDialog.Builder(this).setMessage("Server: "+value("base")+"\nDevice: "+value("device_id")).setPositiveButton("OK",null).show();
-                if(n==2) new AlertDialog.Builder(this).setMessage("Clear local token and reconnect? The existing server-side device remains registered.").setPositiveButton("Reset",(a,b)->{
-                    prefs.edit().remove("token").remove("device_id").apply();etag=null;showSetup();
+                if(n==2) configureMqtt();
+                if(n==3) new AlertDialog.Builder(this).setMessage("Clear local token and reconnect? The existing server-side device remains registered.").setPositiveButton("Reset",(a,b)->{
+                    prefs.edit().remove("token").remove("device_id").apply();etag=null;mqtt.stop();showSetup();
                 }).setNegativeButton("Cancel",null).show();
             }).show();
     }
@@ -144,6 +170,7 @@ public final class MainActivity extends Activity {
             ui.removeCallbacks(poll);
             prefs.edit().remove("token").remove("device_id").apply();
             etag=null;
+            mqtt.stop();
             showSetup();
             notice("Device registration was removed or rejected (HTTP "+status+"). Reconnect using admin approval or a pairing code.");
         });
@@ -179,5 +206,5 @@ public final class MainActivity extends Activity {
             finally{fetching=false;}
         });
     }
-    @Override protected void onDestroy(){ui.removeCallbacksAndMessages(null);worker.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){ui.removeCallbacksAndMessages(null);mqtt.stop();worker.shutdownNow();super.onDestroy();}
 }
