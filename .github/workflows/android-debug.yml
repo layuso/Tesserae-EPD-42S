@@ -27,9 +27,14 @@ jobs:
         run: |
           test -n "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           test -f "$ANDROID_HOME/platforms/android-33/android.jar"
-          test -x "$ANDROID_HOME/build-tools/33.0.2/aapt2"
+          test -f "$ANDROID_HOME/build-tools/33.0.2/aapt2"
+          test -x /usr/lib/android-sdk/build-tools/debian/aapt2
+          /usr/lib/android-sdk/build-tools/debian/aapt2 version
       - name: Build APK using installed Gradle
-        run: "$GRADLE" --no-daemon :app:assembleDebug
+        run: |
+          "$GRADLE" --no-daemon \
+            -Pandroid.aapt2FromMavenOverride=/usr/lib/android-sdk/build-tools/debian/aapt2 \
+            :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: tesserae-epd42s-debug-apk
