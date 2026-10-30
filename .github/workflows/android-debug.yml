@@ -9,6 +9,9 @@ jobs:
     permissions:
       contents: read
     timeout-minutes: 25
+    env:
+      ANDROID_HOME: /home/tesserae-ci/android-sdk
+      GRADLE: /home/tesserae-ci/gradle-7.6.4/bin/gradle
     steps:
       - uses: actions/checkout@v4
       - name: Check local ARM64 build tools
@@ -16,15 +19,17 @@ jobs:
           set -eu
           echo "Architecture: $(uname -m)"
           java -version
-          command -v gradle
+          "$GRADLE" --version
           echo "Android SDK: ${ANDROID_HOME:-${ANDROID_SDK_ROOT:-unset}}"
-          command -v sdkmanager || true
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
       - name: Validate Android SDK
         run: |
           test -n "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          test -d "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/platforms/android-33"
+          test -f "$ANDROID_HOME/platforms/android-33/android.jar"
+          test -x "$ANDROID_HOME/build-tools/33.0.2/aapt2"
       - name: Build APK using installed Gradle
-        run: gradle --no-daemon :app:assembleDebug
+        run: "$GRADLE" --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: tesserae-epd42s-debug-apk
