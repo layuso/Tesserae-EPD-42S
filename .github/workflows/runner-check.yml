@@ -1,0 +1,41 @@
+name: Tesserae runner verification
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/runner-check.yml'
+jobs:
+  verify-arm64-runner:
+    runs-on: [self-hosted, linux, ARM64, tesserae-build]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Verify runner identity and least-privilege execution
+        shell: bash
+        run: |
+          set -eu
+          echo "Machine: $(uname -m) / $(uname -s)"
+          echo "Runner user: $(id -un)"
+          echo "Runner groups: $(id -Gn)"
+          echo "Free disk:"
+          df -h .
+          echo "Java:"
+          (java -version || true) 2>&1
+          echo "Android tooling:"
+          command -v gradle || true
+          command -v sdkmanager || true
+          command -v adb || true
+          echo "SDK directory present:"
+          test -d /opt/android-sdk && echo yes || echo no
+          test "$(id -un)" = "tesserae-ci"
+          ! id -Gn | tr ' ' '\n' | grep -Eq '^(sudo|docker|dialout)$'
+      - name: Confirm repository checkout
+        uses: actions/checkout@v4
+      - name: Verify project scaffold
+        shell: bash
+        run: |
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/ayusohaylock/tesserae/epd42s/MainActivity.java
+          echo "Scaffold verified. No APK install or ADB access requested."
