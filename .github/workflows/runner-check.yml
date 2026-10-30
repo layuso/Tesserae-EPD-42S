@@ -39,3 +39,5 @@ jobs:
           test -f app/src/main/AndroidManifest.xml
           test -f app/src/main/java/com/ayusohaylock/tesserae/epd42s/MainActivity.java
           echo "Scaffold verified. No APK install or ADB access requested."
+
+# Re-run verification after ARM64 runner registration.
