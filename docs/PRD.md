@@ -17,7 +17,7 @@ i.MX7 / Android 5.1.1 / 2880×2160 landscape framebuffer / ethernet / 16 grey le
 3. Registration B: six-digit code via X-Pairing-Code and POST /api/v1/device/register; securely persist returned device token.
 4. Fetch GET /api/v1/device/{id}/frame with Bearer token; If-None-Match; respect 200/204/304; validate expected PNG and buffer dimensions; retain last good frame across 304/errors.
 5. Software-render bitmap only; disabled hardware acceleration; no setRequestedOrientation, no Activity.recreate, no Android system settings changes.
-6. Four orientation calibrations 0/90/180/270, with preview of physical UP and explicit save. Distinguish framebuffer rotation from dashboard composition; Tesserae server can bake rotation in its render for native frame output.
+6. No orientation setup or settings in the Android app. Tesserae's existing device troubleshooting flow owns all orientation calibration. The client honors frame metadata without changing Android system orientation.
 7. Explicit Refresh now; logs that omit tokens/PII; network error/backoff; connection status.
 8. Track heartbeat/status with last paint outcome and follow server next_poll_s; implement only documented fields.
 9. Preserve existing TRMNL Legacy Lite install for rollback.
@@ -36,12 +36,12 @@ i.MX7 / Android 5.1.1 / 2880×2160 landscape framebuffer / ethernet / 16 grey le
 - A fresh install pairs by both paths on real Tesserae; no key manually copied.
 - After approval, an image is displayed at target resolution and grayscale; no SurfaceFlinger crash.
 - A server push results in one new paint, never another paint for a 304.
-- Portrait dashboards are legible and upright while Android orientation stays 0.
+- Portrait dashboards are legible and upright after configuration in Tesserae; Android orientation stays 0.
 - Network outage retains last image; recovery occurs automatically; no token in logs.
 - First release installation leaves original app/OS recoverable.
 
 ## Non-goals
-Custom Android 9 firmware; OS-level rotation; modifying e-ink kernel drivers; automatic sensing from broken motion sensor drivers; server-side Tesserae UI changes.
+Custom Android 9 firmware; OS-level rotation; modifying e-ink kernel drivers; automatic sensing from broken motion sensor drivers; app-side orientation UX; server-side Tesserae UI changes.
 
 ## Dependencies & risks
 - Upstream device kind: a compatible generic kind must be present. The maintainer offered to add a specific kind; use generic only if it actually renders 2880×2160 gray_16 PNG.
