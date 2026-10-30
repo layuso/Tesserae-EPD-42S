@@ -1,0 +1,7 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.ayusohaylock.tesserae.epd42s'
+    compileSdk 33
+    defaultConfig { applicationId 'com.ayusohaylock.tesserae.epd42s'; minSdk 22; targetSdk 28; versionCode 1; versionName '0.1.0' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
