@@ -18,6 +18,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import org.json.JSONObject;
 import java.net.NetworkInterface;
+import java.net.URL;
 import java.util.Collections;
 import java.io.File;
 import java.io.FileInputStream;
@@ -72,7 +73,14 @@ public final class MainActivity extends Activity {
     private void startMqtt(){
         mqtt.stop();
         String broker=value("mqtt_broker");
-        if(broker.isEmpty())return;
+        if(broker.isEmpty()){
+            try {
+                // No new provisioning API needed for the unauthenticated built-in broker trial.
+                // Manual override remains available if the HTTPS reverse proxy does not expose TCP 1883.
+                String host=new URL(value("base")).getHost();
+                broker="tcp://"+host+":1883";
+            }catch(Exception e){android.util.Log.w("TesseraeEPD","Cannot derive MQTT broker host",e);return;}
+        }
         try{mqtt.start(broker,value("device_id"),()->runOnUiThread(()->schedule(0)));}
         catch(Exception e){android.util.Log.w("TesseraeEPD","MQTT unavailable; REST polling remains active",e);}
     }
@@ -82,7 +90,7 @@ public final class MainActivity extends Activity {
         entry.setHint("tcp://broker.lan:1883 or ssl://host:8883");
         entry.setText(value("mqtt_broker"));
         new AlertDialog.Builder(this).setTitle("MQTT frame notifications")
-            .setMessage("Enter a reachable broker URI; leave blank for REST polling. Do not expose a plaintext MQTT broker to the internet.")
+            .setMessage("Leave blank to use the Tesserae server hostname on TCP 1883 (unauthenticated). Set a broker override if the HTTPS hostname does not route MQTT. Keep port 1883 private to your trusted LAN.")
             .setView(entry)
             .setPositiveButton("Save",(d,w)->{
                 String uri=entry.getText().toString().trim();
