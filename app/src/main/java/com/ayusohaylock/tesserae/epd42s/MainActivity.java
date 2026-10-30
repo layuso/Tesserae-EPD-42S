@@ -103,7 +103,7 @@ public final class MainActivity extends Activity {
         j.put("kind","circuitpython_generic"); // Provisional kind: verify renderer with Tesserae.
         j.put("name","Avalue EPD-42S");
         j.put("panel_w",2880); j.put("panel_h",2160);
-        j.put("rotation",prefs.getInt("rotation",0));
+        j.put("rotation",0); // Initial registration baseline; Tesserae owns device orientation.
         j.put("gamut","gray_16");j.put("format","png");
         j.put("fw_version","0.1.0");j.put("mac",mac);
         return j;
