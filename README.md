@@ -8,7 +8,7 @@ A purpose-built **Android 5.1.1 client** for the Avalue EPD-42S 42-inch e-ink pa
 - Zero-touch discovery with administrator approval **or** six-digit pairing-code registration.
 - Native REST frame polling, bearer authentication, ETag/304 change detection, device status.
 - Future MQTT frame announcement subscription for near-immediate update after Tesserae Push.
-- Full 2880×2160 software-rendered grayscale frames and portrait/landscape calibration.
+- Full 2880×2160 software-rendered grayscale frames and Tesserae-managed portrait/landscape orientation; no app calibration UI.
 - Never change Android system orientation. Never force hardware acceleration.
 - Recover gracefully after network interruption; protect tokens; avoid unnecessary e-ink refreshes.
 
