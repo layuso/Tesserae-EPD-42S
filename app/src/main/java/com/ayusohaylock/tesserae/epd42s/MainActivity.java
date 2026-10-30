@@ -137,6 +137,17 @@ public final class MainActivity extends Activity {
             }catch(Exception ex){notice("Registration failed: "+ex.getMessage());}
         });
     }
+    private void registrationRevoked(String expectedToken,int status){
+        android.util.Log.w("TesseraeEPD","Registration invalid (HTTP "+status+"); returning to setup");
+        runOnUiThread(()->{
+            if(!expectedToken.equals(value("token")))return;
+            ui.removeCallbacks(poll);
+            prefs.edit().remove("token").remove("device_id").apply();
+            etag=null;
+            showSetup();
+            notice("Device registration was removed or rejected (HTTP "+status+"). Reconnect using admin approval or a pairing code.");
+        });
+    }
     private void schedule(int seconds){
         ui.removeCallbacks(poll);
         ui.postDelayed(poll,Math.max(0,seconds)*1000L);
@@ -148,6 +159,7 @@ public final class MainActivity extends Activity {
         worker.execute(()->{
             try{
                 NativeTesseraeClient.Reply r=api.frame(base,id,token,frame!=null && frame.getDrawable()!=null?etag:null);
+                if(r.status==401 || r.status==403 || r.status==404){registrationRevoked(token,r.status);return;}
                 if(r.status==304){schedule(30);return;}
                 if(r.status==204){schedule(30);return;}
                 if(r.status!=200)throw new Exception("Frame HTTP "+r.status+": "+r.error);
@@ -156,13 +168,14 @@ public final class MainActivity extends Activity {
                 Bitmap bmp=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
                 if(bmp==null)throw new Exception("PNG decode failed");
                 if(bmp.getWidth()!=2880 || bmp.getHeight()!=2160)throw new Exception("Unexpected frame "+bmp.getWidth()+"x"+bmp.getHeight());
+                if(!token.equals(value("token")))return;
                 cacheFrame(bytes);
                 String tag=r.etag!=null?r.etag:r.data.optString("render_id","");
                 runOnUiThread(()->{
-                    if(frame!=null){frame.setImageBitmap(bmp);etag=tag;}
+                    if(token.equals(value("token")) && frame!=null){frame.setImageBitmap(bmp);etag=tag;}
                 });
                 schedule(30);
-            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());schedule(45);}
+            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());if(token.equals(value("token")))schedule(45);}
             finally{fetching=false;}
         });
     }
