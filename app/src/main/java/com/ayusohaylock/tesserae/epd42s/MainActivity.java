@@ -206,7 +206,7 @@ public final class MainActivity extends Activity {
                         JSONObject config=status.data.optJSONObject("config");
                         boolean alwaysOn=config!=null && config.optBoolean("always_on",false);
                         int desired=status.data.optInt("next_poll_s",30);
-                        interval=Math.max(alwaysOn?5:15,Math.min(300,desired));
+                        interval=Math.max(alwaysOn?5:15,Math.min(alwaysOn?300:86400,desired));
                         android.util.Log.i("TesseraeEPD","Heartbeat OK; next poll "+interval+"s; always_on="+alwaysOn);
                     } else android.util.Log.w("TesseraeEPD","Heartbeat HTTP "+status.status+"; using fallback");
                 }catch(Exception heartbeatError){android.util.Log.w("TesseraeEPD","Heartbeat failed; fetching frame via REST",heartbeatError);}
