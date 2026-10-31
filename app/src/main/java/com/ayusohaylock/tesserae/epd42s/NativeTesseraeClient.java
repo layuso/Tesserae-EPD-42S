@@ -72,6 +72,10 @@ public final class NativeTesseraeClient {
         if(!code.matches("[0-9]{6}"))throw new IllegalArgumentException("Six-digit pairing code required");
         return request(base,"/api/v1/device/register",null,code,identity,null);
     }
+    public Reply status(String base,String id,String token,JSONObject heartbeat) throws Exception {
+        if(!id.matches("[a-z][a-z0-9_-]{1,31}"))throw new IllegalArgumentException("Invalid device id");
+        return request(base,"/api/v1/device/"+id+"/status",token,null,heartbeat,null);
+    }
     public Reply frame(String base,String id,String token,String etag) throws Exception {
         if(!id.matches("[a-z][a-z0-9_-]{1,31}"))throw new IllegalArgumentException("Invalid device id");
         return request(base,"/api/v1/device/"+id+"/frame",token,null,null,etag);
