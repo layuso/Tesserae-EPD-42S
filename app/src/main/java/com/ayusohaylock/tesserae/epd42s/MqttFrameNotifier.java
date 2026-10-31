@@ -22,19 +22,23 @@ final class MqttFrameNotifier {
             throw new IllegalArgumentException("Use tcp:// or ssl:// for MQTT broker");
         if(!id.matches("[a-z][a-z0-9_-]{1,31}")) throw new IllegalArgumentException("Invalid device id");
         final String topic="tesserae/"+id+"/frame/png";
+        Log.i(TAG,"Connecting to broker "+broker+" (unauthenticated)");
         client=new MqttAsyncClient(broker,"tesserae-android-"+id,new MemoryPersistence());
         client.setCallback(new MqttCallbackExtended() {
             @Override public void connectComplete(boolean reconnect,String serverURI) {
                 try {
                     MqttAsyncClient c=client;
-                    if(c!=null && c.isConnected()) c.subscribe(topic,1);
-                    Log.i(TAG,"Subscribed to native PNG frame notifications");
+                    if(c!=null && c.isConnected()) c.subscribe(topic,1,null,new IMqttActionListener(){
+                        @Override public void onSuccess(IMqttToken token){Log.i(TAG,"Subscribed to "+topic+" QoS 1");}
+                        @Override public void onFailure(IMqttToken token,Throwable e){Log.w(TAG,"MQTT subscription rejected; REST remains active",e);}
+                    });
                 } catch(Exception e) {Log.w(TAG,"Subscription failed",e);}
             }
             @Override public void connectionLost(Throwable cause) {Log.w(TAG,"MQTT connection lost; REST polling remains active");}
             @Override public void messageArrived(String received,MqttMessage message) {
                 if(!topic.equals(received))return;
                 // Do not trust arbitrary MQTT URLs or payload commands. REST authenticates and validates the frame.
+                Log.i(TAG,"Frame notification received");
                 listener.frameAvailable();
             }
             @Override public void deliveryComplete(IMqttDeliveryToken token) {}
