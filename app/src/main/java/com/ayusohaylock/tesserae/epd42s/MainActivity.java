@@ -6,6 +6,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.content.SharedPreferences;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -45,11 +51,25 @@ public final class MainActivity extends Activity {
     private String lastError="None";
     private String lastFrameResult="Not checked";
     private final Runnable poll=new Runnable(){public void run(){fetchFrame();}};
+    private boolean receiverRegistered=false;
+    private final BroadcastReceiver networkReceiver=new BroadcastReceiver(){
+        @Override public void onReceive(Context context,Intent intent){
+            if(prefs==null || value("token").isEmpty())return;
+            ConnectivityManager cm=(ConnectivityManager)getSystemService(CONNECTIVITY_SERVICE);
+            NetworkInfo info=cm!=null?cm.getActiveNetworkInfo():null;
+            if(info!=null && info.isConnected()){
+                android.util.Log.i("TesseraeEPD","Network available; scheduling refresh");
+                schedule(0);
+            }
+        }
+    };
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
         prefs=getSharedPreferences("device",MODE_PRIVATE);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         showHome();
+        registerReceiver(networkReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+        receiverRegistered=true;
     }
     private String value(String k){return prefs.getString(k,"");}
     private TextView text(String value,int sp){
@@ -256,5 +276,8 @@ public final class MainActivity extends Activity {
             }
         });
     }
-    @Override protected void onDestroy(){ui.removeCallbacksAndMessages(null);mqtt.stop();worker.shutdownNow();super.onDestroy();}
+    @Override protected void onDestroy(){
+        if(receiverRegistered){unregisterReceiver(networkReceiver);receiverRegistered=false;}
+        ui.removeCallbacksAndMessages(null);mqtt.stop();worker.shutdownNow();super.onDestroy();
+    }
 }
