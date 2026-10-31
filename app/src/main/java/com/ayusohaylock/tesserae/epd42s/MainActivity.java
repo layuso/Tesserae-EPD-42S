@@ -40,7 +40,10 @@ public final class MainActivity extends Activity {
     private volatile boolean fetching=false;
     private volatile boolean refreshPending=false;
     private volatile int nextPollSeconds=30;
-    private boolean active=false;
+    private long lastFrameTime=0L;
+    private long lastHeartbeatTime=0L;
+    private String lastError="None";
+    private String lastFrameResult="Not checked";
     private final Runnable poll=new Runnable(){public void run(){fetchFrame();}};
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
@@ -102,11 +105,27 @@ public final class MainActivity extends Activity {
                 prefs.edit().putString("mqtt_broker",uri).apply();startMqtt();
             }).setNegativeButton("Cancel",null).show();
     }
+    private void showDiagnostics(){
+        String broker=value("mqtt_broker");
+        if(broker.isEmpty()){
+            try{broker="tcp://"+new java.net.URL(value("base")).getHost()+":1883";}
+            catch(Exception ignored){broker="Not configured";}
+        }
+        String details="Server: "+value("base")+"\nDevice: "+value("device_id")+
+            "\nHeartbeat: "+(lastHeartbeatTime==0?"Never":new java.util.Date(lastHeartbeatTime))+
+            "\nFrame: "+lastFrameResult+
+            "\nLast paint: "+(lastFrameTime==0?"Never":new java.util.Date(lastFrameTime))+
+            "\nNext poll interval: "+nextPollSeconds+"s"+
+            "\nMQTT target: "+broker+" (optional)"+
+            "\nLast error: "+lastError;
+        new AlertDialog.Builder(this).setTitle("Device diagnostics").setMessage(details)
+          .setPositiveButton("OK",null).show();
+    }
     private void showSettings(){
         new AlertDialog.Builder(this).setTitle("Tesserae EPD-42S")
-            .setItems(new String[]{"Refresh now","Connection details","MQTT notifications","Reconfigure / re-pair"},(d,n)->{
+            .setItems(new String[]{"Refresh now","Device diagnostics","MQTT notifications","Reconfigure / re-pair"},(d,n)->{
                 if(n==0) fetchFrame();
-                if(n==1) new AlertDialog.Builder(this).setMessage("Server: "+value("base")+"\nDevice: "+value("device_id")).setPositiveButton("OK",null).show();
+                if(n==1) showDiagnostics();
                 if(n==2) configureMqtt();
                 if(n==3) new AlertDialog.Builder(this).setMessage("Clear local token and reconnect? The existing server-side device remains registered.").setPositiveButton("Reset",(a,b)->{
                     prefs.edit().remove("token").remove("device_id").apply();etag=null;mqtt.stop();showSetup();
@@ -207,14 +226,15 @@ public final class MainActivity extends Activity {
                         boolean alwaysOn=config!=null && config.optBoolean("always_on",false);
                         int desired=status.data.optInt("next_poll_s",30);
                         interval=Math.max(alwaysOn?5:15,Math.min(alwaysOn?300:86400,desired));
+                        lastHeartbeatTime=System.currentTimeMillis();
                         android.util.Log.i("TesseraeEPD","Heartbeat OK; next poll "+interval+"s; always_on="+alwaysOn);
                     } else android.util.Log.w("TesseraeEPD","Heartbeat HTTP "+status.status+"; using fallback");
                 }catch(Exception heartbeatError){android.util.Log.w("TesseraeEPD","Heartbeat failed; fetching frame via REST",heartbeatError);}
                 nextPollSeconds=interval;
                 NativeTesseraeClient.Reply r=api.frame(base,id,token,frame!=null && frame.getDrawable()!=null?etag:null);
                 if(r.status==401 || r.status==403 || r.status==404){registrationRevoked(token,r.status);return;}
-                if(r.status==304){android.util.Log.i("TesseraeEPD","Frame unchanged (304)");return;}
-                if(r.status==204){android.util.Log.i("TesseraeEPD","No frame available (204)");return;}
+                if(r.status==304){lastFrameResult="Unchanged (304)";android.util.Log.i("TesseraeEPD","Frame unchanged (304)");return;}
+                if(r.status==204){lastFrameResult="Not ready (204)";android.util.Log.i("TesseraeEPD","No frame available (204)");return;}
                 if(r.status!=200)throw new Exception("Frame HTTP "+r.status+": "+r.error);
                 if(!"png".equalsIgnoreCase(r.data.optString("format")) && !r.data.optString("url","").endsWith(".png"))throw new Exception("Server did not offer a PNG renderer");
                 byte[] bytes=api.downloadPng(base,r.data.getString("url"));
@@ -225,9 +245,9 @@ public final class MainActivity extends Activity {
                 cacheFrame(bytes);
                 String tag=r.etag!=null?r.etag:r.data.optString("render_id","");
                 runOnUiThread(()->{
-                    if(token.equals(value("token")) && frame!=null){frame.setImageBitmap(bmp);etag=tag;android.util.Log.i("TesseraeEPD","Frame displayed "+bmp.getWidth()+"x"+bmp.getHeight());}
+                    if(token.equals(value("token")) && frame!=null){frame.setImageBitmap(bmp);etag=tag;lastFrameTime=System.currentTimeMillis();lastFrameResult="Painted "+bmp.getWidth()+"x"+bmp.getHeight();lastError="None";android.util.Log.i("TesseraeEPD","Frame displayed "+bmp.getWidth()+"x"+bmp.getHeight());}
                 });
-            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());nextPollSeconds=45;}
+            }catch(Exception ex){lastError=ex.getClass().getSimpleName()+": "+ex.getMessage();android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());nextPollSeconds=45;}
             finally{
                 fetching=false;
                 final boolean pending=refreshPending;
