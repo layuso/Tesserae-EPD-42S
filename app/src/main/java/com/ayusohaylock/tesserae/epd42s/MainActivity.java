@@ -38,6 +38,8 @@ public final class MainActivity extends Activity {
     private ImageView frame;
     private String etag=null;
     private volatile boolean fetching=false;
+    private volatile boolean refreshPending=false;
+    private volatile int nextPollSeconds=30;
     private boolean active=false;
     private final Runnable poll=new Runnable(){public void run(){fetchFrame();}};
     @Override public void onCreate(Bundle b){
@@ -188,15 +190,31 @@ public final class MainActivity extends Activity {
         ui.postDelayed(poll,Math.max(0,seconds)*1000L);
     }
     private void fetchFrame(){
-        if(fetching || value("token").isEmpty())return;
+        if(value("token").isEmpty())return;
+        if(fetching){refreshPending=true;return;}
         fetching=true;
         final String base=value("base"),id=value("device_id"),token=value("token");
         worker.execute(()->{
             try{
+                int interval=30;
+                try{
+                    JSONObject heartbeat=new JSONObject();
+                    heartbeat.put("can_stay_awake",true);
+                    NativeTesseraeClient.Reply status=api.status(base,id,token,heartbeat);
+                    if(status.status==401 || status.status==403 || status.status==404){registrationRevoked(token,status.status);return;}
+                    if(status.status==200 && status.data!=null){
+                        JSONObject config=status.data.optJSONObject("config");
+                        boolean alwaysOn=config!=null && config.optBoolean("always_on",false);
+                        int desired=status.data.optInt("next_poll_s",30);
+                        interval=Math.max(alwaysOn?5:15,Math.min(300,desired));
+                        android.util.Log.i("TesseraeEPD","Heartbeat OK; next poll "+interval+"s; always_on="+alwaysOn);
+                    } else android.util.Log.w("TesseraeEPD","Heartbeat HTTP "+status.status+"; using fallback");
+                }catch(Exception heartbeatError){android.util.Log.w("TesseraeEPD","Heartbeat failed; fetching frame via REST",heartbeatError);}
+                nextPollSeconds=interval;
                 NativeTesseraeClient.Reply r=api.frame(base,id,token,frame!=null && frame.getDrawable()!=null?etag:null);
                 if(r.status==401 || r.status==403 || r.status==404){registrationRevoked(token,r.status);return;}
-                if(r.status==304){schedule(30);return;}
-                if(r.status==204){schedule(30);return;}
+                if(r.status==304){android.util.Log.i("TesseraeEPD","Frame unchanged (304)");return;}
+                if(r.status==204){android.util.Log.i("TesseraeEPD","No frame available (204)");return;}
                 if(r.status!=200)throw new Exception("Frame HTTP "+r.status+": "+r.error);
                 if(!"png".equalsIgnoreCase(r.data.optString("format")) && !r.data.optString("url","").endsWith(".png"))throw new Exception("Server did not offer a PNG renderer");
                 byte[] bytes=api.downloadPng(base,r.data.getString("url"));
@@ -207,11 +225,15 @@ public final class MainActivity extends Activity {
                 cacheFrame(bytes);
                 String tag=r.etag!=null?r.etag:r.data.optString("render_id","");
                 runOnUiThread(()->{
-                    if(token.equals(value("token")) && frame!=null){frame.setImageBitmap(bmp);etag=tag;}
+                    if(token.equals(value("token")) && frame!=null){frame.setImageBitmap(bmp);etag=tag;android.util.Log.i("TesseraeEPD","Frame displayed "+bmp.getWidth()+"x"+bmp.getHeight());}
                 });
-                schedule(30);
-            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());if(token.equals(value("token")))schedule(45);}
-            finally{fetching=false;}
+            }catch(Exception ex){android.util.Log.w("TesseraeEPD","Frame refresh failed: "+ex.getMessage());nextPollSeconds=45;}
+            finally{
+                fetching=false;
+                final boolean pending=refreshPending;
+                refreshPending=false;
+                runOnUiThread(()->{if(token.equals(value("token")))schedule(pending?0:nextPollSeconds);});
+            }
         });
     }
     @Override protected void onDestroy(){ui.removeCallbacksAndMessages(null);mqtt.stop();worker.shutdownNow();super.onDestroy();}
