@@ -1,7 +1,7 @@
 name: Android debug APK
+# A public repository must not automatically dispatch arbitrary source onto a
+# non-ephemeral homelab self-hosted runner. Manual owner dispatch only.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 jobs:
   build:
